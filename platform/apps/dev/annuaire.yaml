@@ -20,9 +20,6 @@ spec:
     helm:
       valueFiles:
         - values-dev.yaml
-      parameters:
-        - name: image.tag
-          value: does-not-exist-step8
 
   destination:
     server: https://kubernetes.default.svc
