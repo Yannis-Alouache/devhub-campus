@@ -1,7 +1,7 @@
 # Root Application (pattern App of Apps).
 #
 # C'est la SEULE Application que vous créez à la main avec `kubectl apply`.
-# Tout le reste sera créé par elle, à partir des fichiers de `platform/apps/dev/`.
+# Tout le reste sera créé par elle, à partir des fichiers de `platform/apps/`.
 #
 # Référence : https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/
 #
@@ -22,7 +22,7 @@ spec:
   source:
     repoURL: https://github.com/Yannis-Alouache/devhub-campus.git
     targetRevision: main
-    path: platform/apps/dev
+    path: platform/apps
     directory:
       recurse: true
 

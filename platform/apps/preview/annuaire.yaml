@@ -1,14 +1,9 @@
-# ApplicationSet : annuaire — previews par branche.
+# ApplicationSet : annuaire — previews via pull requests GitHub.
 #
-# C'est l'étape 7. Lisez la doc avant : les generators sont nombreux et
-# leur subtilités piègent.
-#   Doc : https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/
-#
-# Deux options possibles :
-#   - `git` generator (sur branches) — le plus simple, polling 3 min.
-#   - `pullRequest` generator (sur PRs ouvertes) — requiert un token GitHub.
-#
-# Choisissez et justifiez dans RAPPORT.md.
+# Le repo est public mais heberge sur un compte utilisateur GitHub.
+# Le generateur `scmProvider.github allBranches` scanne des organisations,
+# pas ce cas. On utilise donc `pullRequest`, qui supporte `owner` = user/org
+# et fonctionne en lecture anonyme sur un depot public.
 
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -20,27 +15,26 @@ spec:
   goTemplateOptions:
     - missingkey=error
   generators:
-    - scmProvider:
-        cloneProtocol: https
+    - pullRequest:
+        requeueAfterSeconds: 180
         github:
-          organization: Yannis-Alouache
-          allBranches: true
+          owner: Yannis-Alouache
+          repo: devhub-campus
         filters:
-          - repositoryMatch: ^devhub-campus$
-            branchMatch: ^feature/.*
-            pathsExist:
-              - services/annuaire/chart
+          - branchMatch: ^feature/.*
+            targetBranchMatch: ^main$
   template:
     metadata:
-      name: 'annuaire-preview-{{ .branchNormalized }}'
+      name: 'annuaire-pr-{{ .number }}'
       labels:
         devhub.io/env: preview
         devhub.io/service: annuaire
-        devhub.io/branch: '{{ .branchNormalized }}'
+        devhub.io/branch: '{{ .branch_slug }}'
+        devhub.io/pr: '{{ .number }}'
     spec:
       project: devhub
       source:
-        repoURL: '{{ .url }}'
+        repoURL: https://github.com/Yannis-Alouache/devhub-campus.git
         targetRevision: '{{ .branch }}'
         path: services/annuaire/chart
         helm:
@@ -48,12 +42,12 @@ spec:
             - values-preview.yaml
           parameters:
             - name: image.tag
-              value: '{{ .short_sha_7 }}'
+              value: '{{ .head_short_sha_7 }}'
             - name: ingress.host
-              value: 'annuaire-{{ .branchNormalized }}.devhub.local'
+              value: 'annuaire-pr-{{ .number }}.devhub.local'
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'devhub-preview-{{ .branchNormalized }}'
+        namespace: 'devhub-preview-pr-{{ .number }}'
       syncPolicy:
         automated:
           prune: true       # IMPORTANT : indispensable pour nettoyer les previews

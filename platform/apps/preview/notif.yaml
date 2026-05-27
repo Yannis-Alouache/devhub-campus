@@ -1,5 +1,6 @@
 # ApplicationSet preview pour notif.
-# TODO : à compléter à partir du modèle annuaire.yaml.
+# Meme strategie que pour `annuaire` : previews sur PR GitHub `feature/*`
+# vers `main`, sans secret supplementaire tant que le depot reste public.
 
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -11,27 +12,26 @@ spec:
   goTemplateOptions:
     - missingkey=error
   generators:
-    - scmProvider:
-        cloneProtocol: https
+    - pullRequest:
+        requeueAfterSeconds: 180
         github:
-          organization: Yannis-Alouache
-          allBranches: true
+          owner: Yannis-Alouache
+          repo: devhub-campus
         filters:
-          - repositoryMatch: ^devhub-campus$
-            branchMatch: ^feature/.*
-            pathsExist:
-              - services/notif/chart
+          - branchMatch: ^feature/.*
+            targetBranchMatch: ^main$
   template:
     metadata:
-      name: 'notif-preview-{{ .branchNormalized }}'
+      name: 'notif-pr-{{ .number }}'
       labels:
         devhub.io/env: preview
         devhub.io/service: notif
-        devhub.io/branch: '{{ .branchNormalized }}'
+        devhub.io/branch: '{{ .branch_slug }}'
+        devhub.io/pr: '{{ .number }}'
     spec:
       project: devhub
       source:
-        repoURL: '{{ .url }}'
+        repoURL: https://github.com/Yannis-Alouache/devhub-campus.git
         targetRevision: '{{ .branch }}'
         path: services/notif/chart
         helm:
@@ -39,12 +39,12 @@ spec:
             - values-preview.yaml
           parameters:
             - name: image.tag
-              value: '{{ .short_sha_7 }}'
+              value: '{{ .head_short_sha_7 }}'
             - name: ingress.host
-              value: 'notif-{{ .branchNormalized }}.devhub.local'
+              value: 'notif-pr-{{ .number }}.devhub.local'
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'devhub-preview-{{ .branchNormalized }}'
+        namespace: 'devhub-preview-pr-{{ .number }}'
       syncPolicy:
         automated:
           prune: true
