@@ -1,3 +1,6 @@
+image:
+  tag: 15ebea3
+
 ingress:
   enabled: true
 
