@@ -22,7 +22,7 @@ spec:
   source:
     repoURL: https://github.com/Yannis-Alouache/devhub-campus.git
     targetRevision: main
-    path: platform/apps/dev
+    path: platform/apps
     directory:
       recurse: true
 
