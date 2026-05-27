@@ -101,6 +101,9 @@
 - Verification HTTP effectuee via `curl` avec header `Host`.
 - Mot de passe initial admin recupere.
 - Depot GitHub public du projet : `https://github.com/Yannis-Alouache/devhub-campus`.
+- `AppProject` `devhub` cree.
+- `Application` `annuaire-dev` creee d'abord en mode manuel, synchronisee, puis basculee en auto-sync avec `selfHeal: true` et `prune: false`.
+- Etat constate : `Synced + Healthy`.
 
 ## 6. Pattern App of Apps
 
@@ -108,11 +111,35 @@
 - Captures a ajouter : root `Application` + trois enfants.
 - Question a traiter : pourquoi App of Apps n'est pas equivalent a un simple `kubectl apply -f apps/dev/` ?
 
+### Etat courant
+
+- `root` creee depuis `platform/bootstrap/root-app.yaml`.
+- `AppProject` `devhub` ajuste pour autoriser `devhub-*` et `argocd`.
+- Trois applications enfants presentes sous ArgoCD :
+  - `annuaire-dev`
+  - `planning-dev`
+  - `notif-dev`
+- Etat constate apres correction de l'erreur de comparaison ArgoCD : `root`, `annuaire-dev`, `planning-dev` et `notif-dev` sont en `Synced + Healthy`.
+- Verification HTTP faite via les ingresses locaux avec header `Host` :
+  - `annuaire.devhub.local`
+  - `planning.devhub.local`
+  - `notif.devhub.local`
+
 ## 7. `ApplicationSet` et previews
 
 - Notes a completer pendant l'etape 7.
 - Demo attendue : creation d'une branche `feature/*`, apparition de la preview, suppression de la preview a la suppression de la branche.
-- Choix du generateur : A completer plus tard (`git` ou `pullRequest`).
+- Choix du generateur : `git` (sur branches). Le poly demande de choisir et justifier entre `git` et `pullRequest`, sans imposer d'option ; on retient donc l'option la plus simple, sans secret GitHub supplementaire.
+
+### Etat courant
+
+- Le poly a bien ete relu : il impose de choisir et justifier un generateur, mais n'impose pas une option unique.
+- Limitation constatee sur la version d'ArgoCD installee :
+  - la CRD `ApplicationSet` locale ne supporte pas `git.branches` ;
+  - `scmProvider.github allBranches` existe, mais attend une organisation GitHub et echoue sur le compte utilisateur `Yannis-Alouache` avec `404 Not Found`.
+- Consequence : l'etape previews est momentanement bloquee tant qu'on n'a pas choisi entre :
+  - passer sur un generateur `pullRequest` ;
+  - ou deplacer le depot dans une organisation GitHub pour garder une strategie par branche.
 
 ## 8. Bestiaire ArgoCD
 
