@@ -21,7 +21,8 @@
 - 2026-05-27 — Etape previews reprise et documentee : lecture du poly et de la doc ApplicationSet, abandon de `scmProvider.github allBranches` pour un repo sur compte utilisateur, bascule des manifests preview vers `pullRequest`, root app elargie a `platform/apps/`.
 - 2026-05-27 — Validation technique des previews : `kubectl apply --dry-run=server` passe sur les manifests preview et sur la root app mise a jour ; application temporaire des trois `ApplicationSet` sur le cluster pour verification controleur, avec `ParametersGenerated=True` et `ResourcesUpToDate=True`, puis nettoyage immediat pour ne pas laisser de drift manuel.
 - 2026-05-27 — Limite reelle observee en cluster : le generateur `pullRequest` en acces anonyme a bute sur `403 API rate limit exceeded` cote GitHub. Correctif applique : `tokenRef` ajoute dans les trois `ApplicationSet` preview et `Secret` `github-token` a creer dans le namespace `argocd`, sans rien committer de sensible.
-- 2026-05-27 — Point restant pour cloturer l'etape 7 : ouvrir une PR `feature/*` vers `main`, montrer l'apparition de la preview dans ArgoCD, puis documenter la suppression et ajouter les captures.
+- 2026-05-27 — Demo live effectuee sur la PR `#1` (`feature/demo-preview-annuaire` -> `main`) : workflow `build-images` reussi, previews `annuaire-pr-1`, `planning-pr-1`, `notif-pr-1` generees, namespace `devhub-preview-pr-1` cree, `annuaire` observe avec 2 replicas et checks HTTP `/healthz` OK sur les trois hosts preview.
+- 2026-05-27 — Nettoyage observe : fermeture de la PR `#1` + suppression de la branche distante = suppression automatique des trois `Application` preview. Le namespace partage est reste vide et a ete supprime manuellement ensuite.
 
 ## 0. Outillage
 
@@ -140,6 +141,21 @@
 - Demo attendue : creation d'une PR issue de `feature/*`, apparition de la preview, suppression de la preview a la fermeture/suppression de la PR.
 - Choix final du generateur : `pullRequest`. Le poly demande de choisir et justifier entre `git` et `pullRequest`, sans imposer une option unique. Ici, le repo est public mais heberge sur un compte utilisateur GitHub ; `pullRequest` est donc l'option supportee qui reste simple a exploiter.
 
+### Demo realisee
+
+- PR de demonstration : `#1` — `feature/demo-preview-annuaire` -> `main`
+- Effet volontaire sur la branche : `services/annuaire/chart/values-preview.yaml` passe `replicaCount` de `1` a `2`
+- Build associe : workflow GitHub Actions `build-images` execute avec succes avant la stabilisation des previews
+- Applications generees par ArgoCD :
+  - `annuaire-pr-1`
+  - `planning-pr-1`
+  - `notif-pr-1`
+- Namespace cree : `devhub-preview-pr-1`
+- Hosts verifies :
+  - `annuaire-pr-1.devhub.local`
+  - `planning-pr-1.devhub.local`
+  - `notif-pr-1.devhub.local`
+
 ### Etat courant
 
 - Le poly a bien ete relu : il impose de choisir et justifier un generateur, mais n'impose pas une option unique.
@@ -161,9 +177,12 @@
   - `kubectl apply --dry-run=server -f platform/apps/preview` passe ;
   - `kubectl apply --dry-run=server -f platform/bootstrap/root-app.yaml` passe ;
   - une application temporaire des trois `ApplicationSet` sur le cluster a confirme des conditions `ParametersGenerated=True` et `ResourcesUpToDate=True` ;
-  - aucune preview n'est generee tant qu'aucune PR `feature/*` n'est ouverte, ce qui est conforme au generateur choisi ;
-  - les `ApplicationSet` temporaires ont ete supprimes juste apres le controle pour garder le cluster aligne avec Git en attendant le push des manifests ;
-  - il reste a ouvrir une PR `feature/*` vers `main` pour produire la preuve finale dans l'UI ArgoCD et completer les captures.
+  - une fois la PR `#1` ouverte, ArgoCD a genere `annuaire-pr-1`, `planning-pr-1` et `notif-pr-1` dans `devhub-preview-pr-1` ;
+  - `annuaire-pr-1` a bien deploye `2` replicas comme attendu ;
+  - les trois applications de preview sont passees en `Synced + Healthy` ;
+  - les endpoints `/healthz` ont repondu via `curl` avec le header `Host` sur les trois hosts preview ;
+  - a la fermeture de la PR `#1` et a la suppression de la branche, les trois `Application` preview ont ete prunees automatiquement ;
+  - le namespace partage `devhub-preview-pr-1` est reste vide apres le prune et a ete supprime manuellement ; avec `CreateNamespace=true`, ce point reste a connaitre/documenter.
 
 ## 8. Bestiaire ArgoCD
 
