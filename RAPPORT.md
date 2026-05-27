@@ -14,6 +14,14 @@
 - [ ] 9. Securite et observabilite d'ArgoCD
 - [ ] 11. Synthese obligatoire
 
+## Journal d'avancement
+
+- 2026-05-27 — Mise en place du socle local : outils prets, cluster `devhub` cree, ingress-nginx et ArgoCD installes, UI exposee sur `argocd.devhub.local`.
+- 2026-05-27 — Phase GitOps stable en place : `annuaire-dev`, `planning-dev`, `notif-dev` et `root` obtenus en `Synced + Healthy`.
+- 2026-05-27 — Etape previews reprise et documentee : lecture du poly et de la doc ApplicationSet, abandon de `scmProvider.github allBranches` pour un repo sur compte utilisateur, bascule des manifests preview vers `pullRequest`, root app elargie a `platform/apps/`.
+- 2026-05-27 — Validation technique des previews : `kubectl apply --dry-run=server` passe sur les manifests preview et sur la root app mise a jour ; application temporaire des trois `ApplicationSet` sur le cluster pour verification controleur, avec `ParametersGenerated=True` et `ResourcesUpToDate=True`, puis nettoyage immediat pour ne pas laisser de drift manuel.
+- 2026-05-27 — Point restant pour cloturer l'etape 7 : ouvrir une PR `feature/*` vers `main`, montrer l'apparition de la preview dans ArgoCD, puis documenter la suppression et ajouter les captures.
+
 ## 0. Outillage
 
 ### Versions
@@ -128,18 +136,30 @@
 ## 7. `ApplicationSet` et previews
 
 - Notes a completer pendant l'etape 7.
-- Demo attendue : creation d'une branche `feature/*`, apparition de la preview, suppression de la preview a la suppression de la branche.
-- Choix du generateur : `git` (sur branches). Le poly demande de choisir et justifier entre `git` et `pullRequest`, sans imposer d'option ; on retient donc l'option la plus simple, sans secret GitHub supplementaire.
+- Demo attendue : creation d'une PR issue de `feature/*`, apparition de la preview, suppression de la preview a la fermeture/suppression de la PR.
+- Choix final du generateur : `pullRequest`. Le poly demande de choisir et justifier entre `git` et `pullRequest`, sans imposer une option unique. Ici, le repo est public mais heberge sur un compte utilisateur GitHub ; `pullRequest` est donc l'option supportee qui reste simple a exploiter.
 
 ### Etat courant
 
 - Le poly a bien ete relu : il impose de choisir et justifier un generateur, mais n'impose pas une option unique.
 - Limitation constatee sur la version d'ArgoCD installee :
-  - la CRD `ApplicationSet` locale ne supporte pas `git.branches` ;
-  - `scmProvider.github allBranches` existe, mais attend une organisation GitHub et echoue sur le compte utilisateur `Yannis-Alouache` avec `404 Not Found`.
-- Consequence : l'etape previews est momentanement bloquee tant qu'on n'a pas choisi entre :
-  - passer sur un generateur `pullRequest` ;
-  - ou deplacer le depot dans une organisation GitHub pour garder une strategie par branche.
+  - la voie `git.branches` n'est pas exploitable ici ;
+  - `scmProvider.github allBranches` scanne des organisations GitHub, pas un compte utilisateur comme `Yannis-Alouache`.
+- Strategie retenue :
+  - `platform/apps/preview/*.yaml` utilise maintenant `pullRequest.github.owner/repo` sur `Yannis-Alouache/devhub-campus` ;
+  - le poly conseille de preparer un token GitHub ; la doc ApplicationSet indique toutefois que `tokenRef` reste optionnel sur un depot public, avec seulement une limite de requetes plus basse ;
+  - les previews sont filtrees sur les PR dont la branche source matche `^feature/.*` et la branche cible `^main$` ;
+  - chaque preview partage le namespace `devhub-preview-pr-<numero>` et expose des hosts dedies (`annuaire-pr-<numero>.devhub.local`, etc.) ;
+  - le tag d'image injecte correspond a `head_short_sha_7`, ce qui colle a la CI GitHub Actions deja en place.
+- Cablage plateforme :
+  - `platform/bootstrap/root-app.yaml` doit maintenant charger `platform/apps/` et non plus seulement `platform/apps/dev/`, afin que les `ApplicationSet` preview soient crees par la root app.
+- Validation faite :
+  - `kubectl apply --dry-run=server -f platform/apps/preview` passe ;
+  - `kubectl apply --dry-run=server -f platform/bootstrap/root-app.yaml` passe ;
+  - une application temporaire des trois `ApplicationSet` sur le cluster a confirme des conditions `ParametersGenerated=True` et `ResourcesUpToDate=True` ;
+  - aucune preview n'est generee tant qu'aucune PR `feature/*` n'est ouverte, ce qui est conforme au generateur choisi ;
+  - les `ApplicationSet` temporaires ont ete supprimes juste apres le controle pour garder le cluster aligne avec Git en attendant le push des manifests ;
+  - il reste a ouvrir une PR `feature/*` vers `main` pour produire la preuve finale dans l'UI ArgoCD et completer les captures.
 
 ## 8. Bestiaire ArgoCD
 
