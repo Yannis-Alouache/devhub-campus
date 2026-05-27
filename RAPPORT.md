@@ -20,6 +20,7 @@
 - 2026-05-27 — Phase GitOps stable en place : `annuaire-dev`, `planning-dev`, `notif-dev` et `root` obtenus en `Synced + Healthy`.
 - 2026-05-27 — Etape previews reprise et documentee : lecture du poly et de la doc ApplicationSet, abandon de `scmProvider.github allBranches` pour un repo sur compte utilisateur, bascule des manifests preview vers `pullRequest`, root app elargie a `platform/apps/`.
 - 2026-05-27 — Validation technique des previews : `kubectl apply --dry-run=server` passe sur les manifests preview et sur la root app mise a jour ; application temporaire des trois `ApplicationSet` sur le cluster pour verification controleur, avec `ParametersGenerated=True` et `ResourcesUpToDate=True`, puis nettoyage immediat pour ne pas laisser de drift manuel.
+- 2026-05-27 — Limite reelle observee en cluster : le generateur `pullRequest` en acces anonyme a bute sur `403 API rate limit exceeded` cote GitHub. Correctif applique : `tokenRef` ajoute dans les trois `ApplicationSet` preview et `Secret` `github-token` a creer dans le namespace `argocd`, sans rien committer de sensible.
 - 2026-05-27 — Point restant pour cloturer l'etape 7 : ouvrir une PR `feature/*` vers `main`, montrer l'apparition de la preview dans ArgoCD, puis documenter la suppression et ajouter les captures.
 
 ## 0. Outillage
@@ -147,12 +148,15 @@
   - `scmProvider.github allBranches` scanne des organisations GitHub, pas un compte utilisateur comme `Yannis-Alouache`.
 - Strategie retenue :
   - `platform/apps/preview/*.yaml` utilise maintenant `pullRequest.github.owner/repo` sur `Yannis-Alouache/devhub-campus` ;
-  - le poly conseille de preparer un token GitHub ; la doc ApplicationSet indique toutefois que `tokenRef` reste optionnel sur un depot public, avec seulement une limite de requetes plus basse ;
+  - le poly conseille de preparer un token GitHub ; la doc ApplicationSet autorise un repo public sans `tokenRef`, mais dans notre cas le controleur a effectivement rencontre un `403 API rate limit exceeded`, donc `tokenRef` devient necessaire en pratique ;
   - les previews sont filtrees sur les PR dont la branche source matche `^feature/.*` et la branche cible `^main$` ;
   - chaque preview partage le namespace `devhub-preview-pr-<numero>` et expose des hosts dedies (`annuaire-pr-<numero>.devhub.local`, etc.) ;
   - le tag d'image injecte correspond a `head_short_sha_7`, ce qui colle a la CI GitHub Actions deja en place.
 - Cablage plateforme :
   - `platform/bootstrap/root-app.yaml` doit maintenant charger `platform/apps/` et non plus seulement `platform/apps/dev/`, afin que les `ApplicationSet` preview soient crees par la root app.
+- Secret externe au Git :
+  - un `Secret` Kubernetes `github-token` dans `argocd` fournit le PAT au generateur `pullRequest` ;
+  - le token n'est jamais commite dans le repo.
 - Validation faite :
   - `kubectl apply --dry-run=server -f platform/apps/preview` passe ;
   - `kubectl apply --dry-run=server -f platform/bootstrap/root-app.yaml` passe ;

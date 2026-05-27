@@ -1,6 +1,7 @@
 # ApplicationSet preview pour notif.
 # Meme strategie que pour `annuaire` : previews sur PR GitHub `feature/*`
-# vers `main`, sans secret supplementaire tant que le depot reste public.
+# vers `main`, avec un token GitHub fourni par Secret pour eviter la
+# limite anonyme de l'API.
 
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -17,6 +18,9 @@ spec:
         github:
           owner: Yannis-Alouache
           repo: devhub-campus
+          tokenRef:
+            secretName: github-token
+            key: token
         filters:
           - branchMatch: ^feature/.*
             targetBranchMatch: ^main$

@@ -2,8 +2,9 @@
 #
 # Le repo est public mais heberge sur un compte utilisateur GitHub.
 # Le generateur `scmProvider.github allBranches` scanne des organisations,
-# pas ce cas. On utilise donc `pullRequest`, qui supporte `owner` = user/org
-# et fonctionne en lecture anonyme sur un depot public.
+# pas ce cas. On utilise donc `pullRequest`, qui supporte `owner` = user/org.
+# En pratique, on branche aussi un token GitHub via Secret pour eviter
+# la limite de requetes anonyme de l'API GitHub.
 
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -20,6 +21,9 @@ spec:
         github:
           owner: Yannis-Alouache
           repo: devhub-campus
+          tokenRef:
+            secretName: github-token
+            key: token
         filters:
           - branchMatch: ^feature/.*
             targetBranchMatch: ^main$
