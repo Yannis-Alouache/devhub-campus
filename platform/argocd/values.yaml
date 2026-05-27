@@ -67,11 +67,6 @@ notifications:
         when: app.status.operationState.phase in ['Error', 'Failed']
         send:
           - sync-failed-webhook
-  subscriptions:
-    - recipients:
-        - webhook:webhook-site
-      triggers:
-        - on-sync-failed-webhook
 
 # Garde-fou ressources — utile en TP pour ne pas saturer la machine.
 controller:
