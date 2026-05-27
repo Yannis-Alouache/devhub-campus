@@ -7,26 +7,44 @@ metadata:
   name: notif-preview
   namespace: argocd
 spec:
-  generators: []
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - scmProvider:
+        cloneProtocol: https
+        github:
+          organization: Yannis-Alouache
+          allBranches: true
+        filters:
+          - repositoryMatch: ^devhub-campus$
+            branchMatch: ^feature/.*
+            pathsExist:
+              - services/notif/chart
   template:
     metadata:
-      name: notif-preview-{{branch_slug}}
+      name: 'notif-preview-{{ .branchNormalized }}'
       labels:
         devhub.io/env: preview
         devhub.io/service: notif
+        devhub.io/branch: '{{ .branchNormalized }}'
     spec:
       project: devhub
       source:
-        repoURL: https://github.com/<votre-handle>/devhub-campus.git
-        targetRevision: '{{branch}}'
+        repoURL: '{{ .url }}'
+        targetRevision: '{{ .branch }}'
         path: services/notif/chart
         helm:
           valueFiles:
             - values-preview.yaml
-          parameters: []
+          parameters:
+            - name: image.tag
+              value: '{{ .short_sha_7 }}'
+            - name: ingress.host
+              value: 'notif-{{ .branchNormalized }}.devhub.local'
       destination:
         server: https://kubernetes.default.svc
-        namespace: devhub-preview-{{branch_slug}}
+        namespace: 'devhub-preview-{{ .branchNormalized }}'
       syncPolicy:
         automated:
           prune: true
