@@ -13,13 +13,8 @@ env:
   LOG_LEVEL: debug
 
 configMap:
-  includeLogLevel: false
+  includeLogLevel: true
 
 hooks:
   preSyncMigration:
     enabled: true
-
-strategy:
-  rollingUpdate:
-    maxUnavailable: 1
-    maxSurge: 0
