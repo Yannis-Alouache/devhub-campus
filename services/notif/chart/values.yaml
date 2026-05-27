@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/<votre-handle>/notif
+  repository: ghcr.io/yannis-alouache/notif
   tag: ""
   pullPolicy: IfNotPresent
 
@@ -15,6 +15,7 @@ ingress:
   className: nginx
   host: notif.devhub.local
   path: /
+  pathType: Prefix
 
 env:
   LOG_LEVEL: info
@@ -27,9 +28,12 @@ resources:
     cpu: 100m
     memory: 64Mi
 
-securityContext:
+podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65532       # cohérent avec distroless:nonroot
+  runAsGroup: 65532
+
+containerSecurityContext:
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
   capabilities:
