@@ -1,6 +1,7 @@
 ingress:
   enabled: true
-  host: planning.devhub.local
+
+replicaCount: 1
 
 env:
   LOG_LEVEL: debug
