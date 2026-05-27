@@ -92,6 +92,16 @@
 - Captures a ajouter : UI ArgoCD, `Application` Healthy + Synced, arbre des ressources.
 - Comparaison a rediger : `selfHeal: true` vs `prune: true` avec un exemple dangereux pour chacun.
 
+### Etat courant
+
+- ingress-nginx installe sur le cluster local.
+- ArgoCD installe via le chart officiel `argo/argo-cd`.
+- Tous les pods du namespace `argocd` sont en `Running`.
+- Ingress ArgoCD expose sur `argocd.devhub.local`.
+- Verification HTTP effectuee via `curl` avec header `Host`.
+- Mot de passe initial admin recupere.
+- Depot GitHub public du projet : `https://github.com/Yannis-Alouache/devhub-campus`.
+
 ## 6. Pattern App of Apps
 
 - Notes a completer pendant l'etape 6.
