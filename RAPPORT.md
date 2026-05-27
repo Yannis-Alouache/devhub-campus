@@ -189,12 +189,53 @@
 
 Pour chaque scenario : capture, observation, hypothese, conclusion.
 
-1. Drift sur `replicaCount`
-2. Tag image inexistant
-3. Rollback par `git revert`
-4. Hook `PreSync`
-5. Sync waves
-6. Suppression par `prune`
+### 1. Drift sur `replicaCount`
+
+- **Manipulation.** `kubectl scale deploy annuaire-dev-annuaire -n devhub-dev --replicas=7`, puis refresh force de l'application pour voir passer l'etat dans ArgoCD.
+- **Observation.** A `t+1s`, `annuaire-dev` passe en `OutOfSync + Progressing` avec `replicas=7/1`. A `t+3s`, ArgoCD a deja reapplique le desired state Git et le `Deployment` revient a `1/1`, avec l'operation auto-sync en succes.
+- **Hypothese.** Comme `selfHeal: true` est active, ArgoCD ne se contente pas de signaler le drift : il re-synchronise aussitot la ressource modifiee a la main.
+- **Verification.** Le `Deployment` repasse de `spec.replicas=7` a `1`, et `annuaire-dev` revient en `Synced + Healthy` sans aucun commit Git.
+- **Conclusion.** Un changement manuel dans le cluster ne "gagne" pas contre Git. En pratique, sur cette app, la correction est quasi immediate.
+
+### 2. Tag image inexistant
+
+- **Manipulation.** Commit `26dc5aa` sur `main`, en forcant `image.tag=does-not-exist-step8` dans `platform/apps/dev/annuaire.yaml`.
+- **Observation.** ArgoCD accepte la sync du manifeste et cree un nouveau ReplicaSet avec l'image invalide. Le pod associe passe en `ErrImagePull` puis `ImagePullBackOff`. Avec la strategie de rollout par defaut, l'ancien pod sain reste toutefois en place, ce qui laisse l'application en `Synced + Progressing` au lieu d'un `Degraded` immediat.
+- **Hypothese.** ArgoCD considere le rendu Git comme valide et synchronise correctement les manifests ; l'echec apparait seulement a l'execution, au niveau kubelet / registry.
+- **Verification.** Le `Deployment` pointe bien vers `ghcr.io/yannis-alouache/annuaire:does-not-exist-step8`, et Kubernetes cree un nouveau ReplicaSet en echec pendant que l'ancien sert encore le trafic.
+- **Conclusion.** `Synced` ne veut pas dire "deploie avec succes". Si une image n'existe pas, il faut regarder le `Deployment`, les `ReplicaSet` et les events de pod, pas seulement le badge ArgoCD.
+
+### 3. Rollback par `git revert`
+
+- **Manipulation.** `git revert` du commit precedent, produit dans le commit `69abbf4`.
+- **Observation.** A `t+0s`, `annuaire-dev` est encore `Progressing` avec l'image invalide. A `t+6s`, l'image revient sur `ccb0f03`, le ReplicaSet fautif disparait et l'application repasse en `Synced + Healthy`.
+- **Hypothese.** Un revert Git suffit : ArgoCD voit le nouveau commit, resynchronise automatiquement et le cluster converge sans action imperative supplementaire.
+- **Verification.** Le `Deployment` retrouve `ghcr.io/yannis-alouache/annuaire:ccb0f03` et un seul pod sain reste en place.
+- **Conclusion.** Le rollback GitOps tient bien dans Git lui-meme. Ici, revenir a l'etat sain a pris environ 6 secondes.
+
+### 4. Hook `PreSync`
+
+- **Manipulation.** Commit `beadd30` sur `main`, ajoutant un job `annuaire-dev-annuaire-migration` avec `argocd.argoproj.io/hook: PreSync`.
+- **Observation.** Au sync suivant, le job de migration apparait avant le deploiement principal, s'execute en 6 secondes, puis logge `migration ok`. L'application ne revient `Healthy` qu'apres ce job.
+- **Hypothese.** Un hook `PreSync` bloque la sync tant qu'il n'a pas reussi ; c'est le bon mecanisme pour une migration ou un pre-check obligatoire.
+- **Verification.** Le `syncResult` de l'application liste d'abord le `Job` en phase `PreSync`, puis les autres ressources. Les logs du job contiennent bien `migration ok`.
+- **Conclusion.** Pour une migration de schema ou un pre-requis fort, `PreSync` donne un vrai garde-fou : si le job echoue, le deploiement applicatif n'avance pas.
+
+### 5. Sync waves
+
+- **Manipulation.** Le meme commit `beadd30` introduit un `ConfigMap` annote `argocd.argoproj.io/sync-wave: "-1"` et un `Deployment` annote `argocd.argoproj.io/sync-wave: "0"`. Ensuite, le commit `fb68e13` retire la cle `LOG_LEVEL` du `ConfigMap` (`data: {}`) et force un rollout visible avec `maxUnavailable: 1` et `maxSurge: 0`.
+- **Observation.** Le `syncResult` ArgoCD applique d'abord le `Job` `PreSync`, puis le `ConfigMap`, puis le `Deployment`. Quand le `ConfigMap` ne contient plus `LOG_LEVEL`, le pod applicatif passe en `CreateContainerConfigError` avec l'event Kubernetes `couldn't find key LOG_LEVEL in ConfigMap`. ArgoCD reste `Synced + Progressing` tant que le deadline de rollout n'est pas depasse, mais le deploiement, lui, ne demarre plus.
+- **Hypothese.** Les sync waves controlent bien l'ordre d'application, mais pas la validite semantique de ce qui est applique : si la ressource de wave `-1` est mauvaise, la wave `0` la consomme et echoue.
+- **Verification.** Le `ConfigMap` rendu en cluster porte bien la wave `-1`, le `Deployment` la wave `0`, et le pod `annuaire-dev-annuaire-75447b79fc-bgf9n` reste bloque en `CreateContainerConfigError`.
+- **Conclusion.** Les sync waves permettent d'imposer l'ordre, pas de "magiquement" securiser les ressources. Une config invalide placee tot dans la sequence casse tout ce qui arrive apres.
+
+### 6. Suppression par `prune`
+
+- **Manipulation.** Commit `3cc2f3a` sur `main`, avec `prune: true` active pour `annuaire-dev` et suppression du fichier `services/annuaire/chart/templates/service.yaml`.
+- **Observation.** Le `Service/annuaire-dev-annuaire` disparait du cluster a `t+15s`. L'application reste `Healthy`, car le `Deployment` et l'`Ingress` existent toujours, meme si l'ingress n'a plus de backend cible operationnel. Le commit de revert `8fa80f8` recree ensuite le `Service` et ramene l'app a un etat normal en 16 secondes.
+- **Hypothese.** Avec `prune: true`, ArgoCD supprime bien du cluster les ressources retirees du Git, meme si l'on n'a pas touche au cluster a la main.
+- **Verification.** Le `Service` est visible avant le commit, absent apres la sync, puis de nouveau present apres le revert.
+- **Conclusion.** `prune` est tres puissant et donc dangereux : une suppression de fichier dans Git se traduit par une vraie suppression Kubernetes.
 
 ## 9. Securite et observabilite d'ArgoCD
 
