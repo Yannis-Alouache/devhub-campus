@@ -1,0 +1,27 @@
+{{- if .Values.hooks.preSyncMigration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "annuaire.fullname" . }}-migration
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    {{- include "annuaire.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "annuaire.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migration
+          image: {{ .Values.hooks.preSyncMigration.image | quote }}
+          command:
+            - sh
+            - -c
+            - echo migration ok
+{{- end }}

@@ -2,15 +2,21 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "annuaire.fullname" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     {{- include "annuaire.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "annuaire.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "annuaire.labels" . | nindent 8 }}
     spec:
@@ -27,7 +33,10 @@ spec:
             - name: PORT
               value: "{{ .Values.service.targetPort }}"
             - name: LOG_LEVEL
-              value: "{{ .Values.env.LOG_LEVEL }}"
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "annuaire.fullname" . }}
+                  key: LOG_LEVEL
           readinessProbe:
             httpGet:
               path: {{ .Values.probes.readiness.path }}
