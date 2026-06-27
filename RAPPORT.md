@@ -204,6 +204,18 @@ L'Ingress est conditionnel (`ingress.enabled`). En dev, il est active avec le ho
 | `resources.limits.memory` | 128Mi | 128Mi (defaut) | 96Mi | 128Mi (defaut) |
 | `hooks.preSyncMigration.enabled` | false | true | false | false |
 
+### Validation
+
+```bash
+helm lint services/annuaire/chart/
+# => 1 chart(s) passed, 0 chart(s) failed
+
+helm template services/annuaire/chart/ -f services/annuaire/chart/values-dev.yaml | kubectl apply --dry-run=client -f -
+# => deployment.apps/annuaire created (dry-run)
+# => service/annuaire created (dry-run)
+# => ingress.networking.k8s.io/annuaire created (dry-run)
+```
+
 ## 5. Installation ArgoCD et premiere `Application`
 
 ### Installation
@@ -213,7 +225,7 @@ L'Ingress est conditionnel (`ingress.enabled`). En dev, il est active avec le ho
 - Tous les pods du namespace `argocd` sont en `Running` (controller, server, repo-server, redis, dex, notifications, applicationset-controller).
 - Ingress ArgoCD expose sur `argocd.devhub.local` (TLS desactive en interne, ingress-nginx en frontal).
 - Verification HTTP effectuee via `curl -H "Host: argocd.devhub.local" http://localhost/`.
-- Mot de passe initial admin recupere depuis le Secret `argocd-initial-admin-secret`.
+- Mot de passe initial admin recupere depuis le Secret `argocd-initial-admin-secret` puis **rote** via `argocd account update-password` (connecte avec `argocd login argocd.devhub.local --insecure`).
 
 ### Premiere Application
 
