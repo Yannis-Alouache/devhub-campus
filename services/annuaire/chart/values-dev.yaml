@@ -13,7 +13,7 @@ env:
   LOG_LEVEL: debug
 
 configMap:
-  includeLogLevel: false
+  includeLogLevel: true
 
 hooks:
   preSyncMigration:
