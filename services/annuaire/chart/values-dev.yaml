@@ -2,7 +2,7 @@
 # Ne mettez ICI que ce qui diffère de values.yaml.
 
 image:
-  tag: does-not-exist-step8
+  tag: ccb0f03
 
 ingress:
   enabled: true
