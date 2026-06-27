@@ -29,7 +29,7 @@
 
 ### Versions
 
-- `docker version` : 28.5.2
+- `docker version` : 29.4.0
 - `kubectl version --client` : v1.35.0
 - `helm version` : v4.2.0
 - `argocd version --client` : v3.4.2 (CLI), v2.12.6 (serveur en cluster)
@@ -234,6 +234,10 @@ helm template services/annuaire/chart/ -f services/annuaire/chart/values-dev.yam
 - `Application` `annuaire-dev` creee d'abord en mode manuel, synchronisee, puis basculee en auto-sync avec `selfHeal: true` et `prune: false`.
 - Etat constate : `Synced + Healthy`.
 
+**Capture :**
+
+![c1 — annuaire-dev Synced + Healthy, arbre des ressources](captures/c1-annuaire-dev-synced-healthy.png)
+
 ### Comparaison `selfHeal` vs `prune`
 
 | Option | Effet | Exemple dangereux |
@@ -264,6 +268,11 @@ Apres cette commande, ArgoCD prend le relais et cree les applications enfants.
   - `planning-dev`
   - `notif-dev`
 - Etat constate : `root`, `annuaire-dev`, `planning-dev` et `notif-dev` en `Synced + Healthy`.
+
+**Captures :**
+
+![c2 — les 4 Applications (root + 3 enfants), toutes Synced + Healthy](captures/c2-app-of-apps-4-applications.png)
+![c2b — arbre de la root : elle contient les 3 Applications enfants (pattern App of Apps)](captures/c2b-root-tree.png)
 - Verification HTTP faite via les ingresses locaux avec header `Host` :
   - `annuaire.devhub.local`
   - `planning.devhub.local`
@@ -342,11 +351,17 @@ Pour chaque scenario : capture, observation, hypothese, conclusion.
 
 ### 1. Drift sur `replicaCount`
 
-- **Manipulation.** `kubectl scale deploy annuaire-dev-annuaire -n devhub-dev --replicas=7`, puis refresh force de l'application pour voir passer l'etat dans ArgoCD.
-- **Observation.** A `t+1s`, `annuaire-dev` passe en `OutOfSync + Progressing` avec `replicas=7/1`. A `t+3s`, ArgoCD a deja reapplique le desired state Git et le `Deployment` revient a `1/1`, avec l'operation auto-sync en succes.
+- **Manipulation.** `kubectl scale deploy annuaire-dev-annuaire -n devhub-dev --replicas=5`, puis refresh force de l'application pour voir passer l'etat dans ArgoCD.
+- **Observation.** A `t+1s`, `annuaire-dev` passe en `OutOfSync + Progressing` avec `replicas=5/1`. A `t+4s`, ArgoCD a deja reapplique le desired state Git et le `Deployment` revient a `1/1`, avec l'operation auto-sync en succes.
 - **Hypothese.** Comme `selfHeal: true` est active, ArgoCD ne se contente pas de signaler le drift : il re-synchronise aussitot la ressource modifiee a la main.
-- **Verification.** Le `Deployment` repasse de `spec.replicas=7` a `1`, et `annuaire-dev` revient en `Synced + Healthy` sans aucun commit Git.
+- **Verification.** Le `Deployment` repasse de `spec.replicas=5` a `1`, et `annuaire-dev` revient en `Synced + Healthy` sans aucun commit Git.
 - **Conclusion.** Un changement manuel dans le cluster ne "gagne" pas contre Git. En pratique, sur cette app, la correction est quasi immediate.
+
+**Captures :**
+
+![c3a — drift : annuaire-dev OutOfSync, 5 pods (Git en veut 1)](captures/c3a-drift-outofsync.png)
+![c3b — retour Synced + Healthy apres correction auto (selfHeal)](captures/c3b-drift-selfheal-recovered.png)
+![c3c — diff Git/live : replicas 5 vs 1](captures/c3c-drift-diff.png)
 
 ### 2. Tag image inexistant
 
@@ -356,13 +371,22 @@ Pour chaque scenario : capture, observation, hypothese, conclusion.
 - **Verification.** Le `Deployment` pointe bien vers `ghcr.io/yannis-alouache/annuaire:does-not-exist-step8`, et Kubernetes cree un nouveau ReplicaSet en echec pendant que l'ancien sert encore le trafic.
 - **Conclusion.** `Synced` ne veut pas dire "deploie avec succes". Si une image n'existe pas, il faut regarder le `Deployment`, les `ReplicaSet` et les events de pod, pas seulement le badge ArgoCD.
 
+**Captures :**
+
+![c4 — Synced + Progressing, pod en ImagePullBackOff](captures/c4-progressing-imagepullback.png)
+![c4b — detail : ErrImagePull NotFound sur does-not-exist-step8](captures/c4-image-not-found-imagepullbackoff.png)
+
 ### 3. Rollback par `git revert`
 
 - **Manipulation.** `git revert` du commit precedent, produit dans le commit `69abbf4`.
-- **Observation.** A `t+0s`, `annuaire-dev` est encore `Progressing` avec l'image invalide. A `t+6s`, l'image revient sur `ccb0f03`, le ReplicaSet fautif disparait et l'application repasse en `Synced + Healthy`.
+- **Observation.** A `t+0s`, `annuaire-dev` est encore `Progressing` avec l'image invalide. A `t+~10s`, l'image revient sur `ccb0f03`, le ReplicaSet fautif disparait et l'application repasse en `Synced + Healthy`.
 - **Hypothese.** Un revert Git suffit : ArgoCD voit le nouveau commit, resynchronise automatiquement et le cluster converge sans action imperative supplementaire.
 - **Verification.** Le `Deployment` retrouve `ghcr.io/yannis-alouache/annuaire:ccb0f03` et un seul pod sain reste en place.
-- **Conclusion.** Le rollback GitOps tient bien dans Git lui-meme. Ici, revenir a l'etat sain a pris environ 6 secondes.
+- **Conclusion.** Le rollback GitOps tient bien dans Git lui-meme. Ici, revenir a l'etat sain a pris environ 10 secondes.
+
+**Capture :**
+
+![c5 — retour Synced + Healthy apres le git revert](captures/c5-rollback-git-revert-healthy.png)
 
 ### 4. Hook `PreSync`
 
@@ -372,6 +396,11 @@ Pour chaque scenario : capture, observation, hypothese, conclusion.
 - **Verification.** Le `syncResult` de l'application liste d'abord le `Job` en phase `PreSync`, puis les autres ressources. Les logs du job contiennent bien `migration ok`.
 - **Conclusion.** Pour une migration de schema ou un pre-requis fort, `PreSync` donne un vrai garde-fou : si le job echoue, le deploiement applicatif n'avance pas.
 
+**Captures :**
+
+![c6 — sync result : le Job s'execute en phase PreSync avant le deploiement](captures/c6-presync-hook.png)
+![c6b — logs du job : migration ok](captures/c6b-presync-logs.png)
+
 ### 5. Sync waves
 
 - **Manipulation.** Le meme commit `beadd30` introduit un `ConfigMap` annote `argocd.argoproj.io/sync-wave: "-1"` et un `Deployment` annote `argocd.argoproj.io/sync-wave: "0"`. Ensuite, le commit `fb68e13` retire la cle `LOG_LEVEL` du `ConfigMap` (`data: {}`) et force un rollout visible avec `maxUnavailable: 1` et `maxSurge: 0`.
@@ -380,6 +409,11 @@ Pour chaque scenario : capture, observation, hypothese, conclusion.
 - **Verification.** Le `ConfigMap` rendu en cluster porte bien la wave `-1`, le `Deployment` la wave `0`, et le pod `annuaire-dev-annuaire-75447b79fc-bgf9n` reste bloque en `CreateContainerConfigError`.
 - **Conclusion.** Les sync waves permettent d'imposer l'ordre, pas de "magiquement" securiser les ressources. Une config invalide placee tot dans la sequence casse tout ce qui arrive apres.
 
+**Captures :**
+
+![c7 — pod bloque en CreateContainerConfigError (ConfigMap wave -1 invalide)](captures/c7-syncwave-configmap-broken.png)
+![c7b — detail : couldn't find key LOG_LEVEL in ConfigMap](captures/c7b-configerror-detail.png)
+
 ### 6. Suppression par `prune`
 
 - **Manipulation.** Commit `3cc2f3a` sur `main`, avec `prune: true` active pour `annuaire-dev` et suppression du fichier `services/annuaire/chart/templates/service.yaml`.
@@ -387,6 +421,11 @@ Pour chaque scenario : capture, observation, hypothese, conclusion.
 - **Hypothese.** Avec `prune: true`, ArgoCD supprime bien du cluster les ressources retirees du Git, meme si l'on n'a pas touche au cluster a la main.
 - **Verification.** Le `Service` est visible avant le commit, absent apres la sync, puis de nouveau present apres le revert.
 - **Conclusion.** `prune` est tres puissant et donc dangereux : une suppression de fichier dans Git se traduit par une vraie suppression Kubernetes.
+
+**Captures :**
+
+![c8 — le Service a disparu du cluster apres suppression de service.yaml (prune:true)](captures/c8-prune-service-deleted.png)
+![c8b — detail : Service marque Pruned dans le sync result](captures/c8b-prune-detail.png)
 
 ## 9. Securite et observabilite d'ArgoCD
 
@@ -430,7 +469,7 @@ Le fichier `platform/argocd/values.yaml` declare :
 
 Le chart active `notifications.enabled: true` dans `platform/argocd/values.yaml`. Le ConfigMap `argocd-notifications-cm` contient :
 
-- un service webhook `webhook-site` pointant vers `https://webhook.site/7950c1c3-6599-400f-9bd2-56e27479e7e8` ;
+- un service webhook `webhook-site` pointant vers `https://webhook.site/cac903ce-5232-4743-944b-935867662017` ;
 - un template `sync-failed-webhook` qui envoie un JSON avec `application`, `revision` et `error` ;
 - un trigger `on-sync-failed-webhook` qui se declenche quand `app.status.operationState.phase` est `Error` ou `Failed` ;
 - l'annotation `notifications.argoproj.io/subscribe.on-sync-failed-webhook.webhook-site: ""` posee sur `annuaire-dev` pour souscrire aux notifications.
@@ -442,7 +481,7 @@ Le test RBAC ci-dessus a declenche un `sync` sur `annuaire-dev` qui a echoue (Jo
 ```
 level=info msg="Trigger on-sync-failed-webhook result: [{... true}]"
 level=info msg="Sending notification about condition 'on-sync-failed-webhook.[0].H9WjsqG1dKYm6njOZ7yUQYOA1Wk' to '{webhook-site }'"
-DEBUG POST https://webhook.site/7950c1c3-6599-400f-9bd2-56e27479e7e8
+DEBUG POST https://webhook.site/cac903ce-5232-4743-944b-935867662017
 ```
 
 Le payload envoye contient :
@@ -455,6 +494,10 @@ Le payload envoye contient :
 ```
 
 La notification a ete recue avec succes par webhook.site (HTTP 200 du POST). L'annotation `notified.notifications.argoproj.io` sur l'Application empeche les envois en doublon tant que l'etat ne change pas.
+
+**Capture :**
+
+![c9 — webhook.site : requete recue + payload JSON (application / revision / error)](captures/c9-webhook-notification-received-and-payload.png)
 
 ### Metriques Prometheus
 

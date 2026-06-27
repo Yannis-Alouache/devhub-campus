@@ -46,7 +46,7 @@ notifications:
     enabled: true
   notifiers:
     service.webhook.webhook-site: |
-      url: https://webhook.site/7950c1c3-6599-400f-9bd2-56e27479e7e8
+      url: https://webhook.site/cac903ce-5232-4743-944b-935867662017
       headers:
         - name: Content-Type
           value: application/json
