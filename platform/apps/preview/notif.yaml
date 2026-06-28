@@ -26,7 +26,7 @@ spec:
             targetBranchMatch: ^main$
   template:
     metadata:
-      name: 'notif-pr-{{ .number }}'
+      name: 'notif-preview-{{ .branch_slug }}'
       labels:
         devhub.io/env: preview
         devhub.io/service: notif
@@ -45,10 +45,10 @@ spec:
             - name: image.tag
               value: '{{ .head_short_sha_7 }}'
             - name: ingress.host
-              value: 'notif-pr-{{ .number }}.devhub.local'
+              value: 'notif-preview-{{ .branch_slug }}.devhub.local'
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'devhub-preview-pr-{{ .number }}'
+        namespace: 'devhub-preview-{{ .branch_slug }}'
       syncPolicy:
         automated:
           prune: true

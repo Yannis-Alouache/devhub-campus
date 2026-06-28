@@ -26,7 +26,7 @@ spec:
             targetBranchMatch: ^main$
   template:
     metadata:
-      name: 'planning-pr-{{ .number }}'
+      name: 'planning-preview-{{ .branch_slug }}'
       labels:
         devhub.io/env: preview
         devhub.io/service: planning
@@ -45,10 +45,10 @@ spec:
             - name: image.tag
               value: '{{ .head_short_sha_7 }}'
             - name: ingress.host
-              value: 'planning-pr-{{ .number }}.devhub.local'
+              value: 'planning-preview-{{ .branch_slug }}.devhub.local'
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'devhub-preview-pr-{{ .number }}'
+        namespace: 'devhub-preview-{{ .branch_slug }}'
       syncPolicy:
         automated:
           prune: true

@@ -29,7 +29,7 @@ spec:
             targetBranchMatch: ^main$
   template:
     metadata:
-      name: 'annuaire-pr-{{ .number }}'
+      name: 'annuaire-preview-{{ .branch_slug }}'
       labels:
         devhub.io/env: preview
         devhub.io/service: annuaire
@@ -48,10 +48,10 @@ spec:
             - name: image.tag
               value: '{{ .head_short_sha_7 }}'
             - name: ingress.host
-              value: 'annuaire-pr-{{ .number }}.devhub.local'
+              value: 'annuaire-preview-{{ .branch_slug }}.devhub.local'
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'devhub-preview-pr-{{ .number }}'
+        namespace: 'devhub-preview-{{ .branch_slug }}'
       syncPolicy:
         automated:
           prune: true       # IMPORTANT : indispensable pour nettoyer les previews
