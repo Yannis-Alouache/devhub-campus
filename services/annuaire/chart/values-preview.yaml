@@ -2,7 +2,7 @@
 # L'ApplicationSet va probablement surcharger `ingress.host` à la volée par branche
 # via `parameters` — réfléchissez à ce qu'il faut laisser ici vs. surcharger.
 
-replicaCount: 1
+replicaCount: 3
 
 ingress:
   enabled: true
