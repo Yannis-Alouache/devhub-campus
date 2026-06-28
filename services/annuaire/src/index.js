@@ -18,7 +18,7 @@ const students = [
 
 const app = express();
 
-app.get('/healthz', (_, res) => res.json({ ok: true, service: 'annuaire' }));
+app.get('/healthz', (_, res) => res.json({ ok: true, service: 'annuaire', env: 'preview-demo-prof' }));
 app.get('/students', (_, res) => res.json(students));
 
 app.listen(PORT, () => log('info', `annuaire up on :${PORT}`));
