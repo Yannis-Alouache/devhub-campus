@@ -21,7 +21,7 @@
 - 2026-05-27 — Etape previews reprise et documentee : lecture du poly et de la doc ApplicationSet, abandon de `scmProvider.github allBranches` pour un repo sur compte utilisateur, bascule des manifests preview vers `pullRequest`, root app elargie a `platform/apps/`.
 - 2026-05-27 — Validation technique des previews : `kubectl apply --dry-run=server` passe sur les manifests preview et sur la root app mise a jour ; application temporaire des trois `ApplicationSet` sur le cluster pour verification controleur, avec `ParametersGenerated=True` et `ResourcesUpToDate=True`, puis nettoyage immediat pour ne pas laisser de drift manuel.
 - 2026-05-27 — Limite reelle observee en cluster : le generateur `pullRequest` en acces anonyme a bute sur `403 API rate limit exceeded` cote GitHub. Correctif applique : `tokenRef` ajoute dans les trois `ApplicationSet` preview et `Secret` `github-token` a creer dans le namespace `argocd`, sans rien committer de sensible.
-- 2026-05-27 — Demo live effectuee sur la PR `#1` (`feature/demo-preview-annuaire` -> `main`) : workflow `build-images` reussi, previews `annuaire-pr-1`, `planning-pr-1`, `notif-pr-1` generees, namespace `devhub-preview-pr-1` cree, `annuaire` observe avec 2 replicas et checks HTTP `/healthz` OK sur les trois hosts preview.
+- 2026-05-27 — Demo live effectuee sur la PR `#1` (`feature/demo-preview-annuaire` -> `main`) : workflow `build-images` reussi, previews `annuaire-preview-feature-demo-prof`, `planning-preview-feature-demo-prof`, `notif-preview-feature-demo-prof` generees, namespace `devhub-preview-feature-demo-prof` cree, `annuaire` observe avec 3 replicas et checks HTTP `/healthz` OK sur les trois hosts preview.
 - 2026-05-27 — Nettoyage observe : fermeture de la PR `#1` + suppression de la branche distante = suppression automatique des trois `Application` preview. Le namespace partage est reste vide et a ete supprime manuellement ensuite.
 - 2026-05-27 — Etat stable retrouve : plus aucune preview active hors PR ouverte ; `root`, `annuaire-dev`, `planning-dev` et `notif-dev` sont revenus en `Synced + Healthy`, tandis que les trois `ApplicationSet` preview restent installes et prets pour la prochaine PR.
 
@@ -103,7 +103,7 @@ ArgoCD est plus contraignant au demarrage (installation, configuration RBAC, com
 | `Sync` | L'operation qui rapproche l'etat reel du cluster de l'etat souhaite dans Git. Peut etre manuelle ou automatique (`auto-sync`). | Quand un commit modifie `values-dev.yaml`, ArgoCD detecte le changement et lance un sync pour mettre a jour le `Deployment`. |
 | `Prune` | Suppression des ressources cluster qui ne sont plus presentes dans Git. Active avec `syncPolicy.automated.prune: true`. | Quand le fichier `service.yaml` a ete retire du chart, `prune: true` a supprime le Service du cluster. |
 | `App of Apps` | Pattern ou une `Application` ArgoCD (dite "root") surveille un dossier Git contenant d'autres manifests `Application`, creant ainsi un arbre d'applications gere par ArgoCD. | `root` surveille `platform/apps/dev/` et cree `annuaire-dev`, `planning-dev`, `notif-dev`. |
-| `ApplicationSet` | CRD qui genere dynamiquement des `Application` a partir de generateurs (liste, git, pullRequest). Permet le deploiement automatique par branche/PR. | Les trois `ApplicationSet` preview utilisent le generateur `pullRequest` pour creer `annuaire-pr-1`, `planning-pr-1`, `notif-pr-1` quand une PR est ouverte. |
+| `ApplicationSet` | CRD qui genere dynamiquement des `Application` a partir de generateurs (liste, git, pullRequest). Permet le deploiement automatique par branche/PR. | Les trois `ApplicationSet` preview utilisent le generateur `pullRequest` pour creer `annuaire-preview-feature-demo-prof`, `planning-preview-feature-demo-prof`, `notif-preview-feature-demo-prof` quand une PR est ouverte. |
 | `Sync wave` | Mecanisme pour ordonner les ressources lors d'un sync. Les ressources de wave `-1` sont appliquees avant celles de wave `0`, etc. | Le `ConfigMap` est en wave `-1`, le `Deployment` en wave `0`, et le Job `PreSync` s'execute avant tout. |
 | `Hook` | Ressource annotee `argocd.argoproj.io/hook` qui s'execute a un moment precis du cycle de sync (`PreSync`, `PostSync`, `SyncFail`). | Le Job `annuaire-dev-annuaire-migration` avec `hook: PreSync` s'execute avant le deploiement et bloque la sync s'il echoue. |
 
@@ -190,7 +190,7 @@ Le Deployment expose deux probes HTTP sur `/healthz` (port 8080) :
 
 ### Ingress
 
-L'Ingress est conditionnel (`ingress.enabled`). En dev, il est active avec le host `annuaire.devhub.local`. En preview, le host est surcharge dynamiquement par l'ApplicationSet (ex: `annuaire-pr-1.devhub.local`).
+L'Ingress est conditionnel (`ingress.enabled`). En dev, il est active avec le host `annuaire.devhub.local`. En preview, le host est surcharge dynamiquement par l'ApplicationSet (ex: `annuaire-preview-feature-demo-prof.devhub.local`).
 
 ### Differences entre environnements
 
@@ -297,25 +297,25 @@ Le polycopie demande de choisir entre le generateur `git` (branches) et `pullReq
 
 ### Bilan du cycle demo
 
-1. **Ouverture** : creation de la PR `#1` depuis `feature/demo-preview-annuaire` vers `main`. ArgoCD detecte la PR et genere trois `Application` preview (`annuaire-pr-1`, `planning-pr-1`, `notif-pr-1`) dans le namespace `devhub-preview-pr-1`.
-2. **Convergence** : les trois applications passent en `Synced + Healthy`. L'ingress est accessible via les hosts `annuaire-pr-1.devhub.local`, etc.
+1. **Ouverture** : creation de la PR `#1` depuis `feature/demo-preview-annuaire` vers `main`. ArgoCD detecte la PR et genere trois `Application` preview (`annuaire-preview-feature-demo-prof`, `planning-preview-feature-demo-prof`, `notif-preview-feature-demo-prof`) dans le namespace `devhub-preview-feature-demo-prof`.
+2. **Convergence** : les trois applications passent en `Synced + Healthy`. L'ingress est accessible via les hosts `annuaire-preview-feature-demo-prof.devhub.local`, etc.
 3. **Fermeture** : la PR est fermee et la branche supprimee. Les trois `Application` preview sont prunees automatiquement par ArgoCD.
-4. **Nettoyage** : le namespace `devhub-preview-pr-1` reste vide mais n'est pas supprime automatiquement (ArgoCD ne gere le cycle de vie que des ressources qu'il a creees, pas du namespace lui-meme). Suppression manuelle avec `kubectl delete namespace`.
+4. **Nettoyage** : le namespace `devhub-preview-feature-demo-prof` reste vide mais n'est pas supprime automatiquement (ArgoCD ne gere le cycle de vie que des ressources qu'il a creees, pas du namespace lui-meme). Suppression manuelle avec `kubectl delete namespace`.
 
 ### Demo realisee
 
 - PR de demonstration : `#1` — `feature/demo-preview-annuaire` -> `main`
-- Effet volontaire sur la branche : `services/annuaire/chart/values-preview.yaml` passe `replicaCount` de `1` a `2`
+- Effet volontaire sur la branche : `services/annuaire/chart/values-preview.yaml` passe `replicaCount` de `1` a `3`
 - Build associe : workflow GitHub Actions `build-images` execute avec succes avant la stabilisation des previews
 - Applications generees par ArgoCD :
-  - `annuaire-pr-1`
-  - `planning-pr-1`
-  - `notif-pr-1`
-- Namespace cree : `devhub-preview-pr-1`
+  - `annuaire-preview-feature-demo-prof`
+  - `planning-preview-feature-demo-prof`
+  - `notif-preview-feature-demo-prof`
+- Namespace cree : `devhub-preview-feature-demo-prof`
 - Hosts verifies :
-  - `annuaire-pr-1.devhub.local`
-  - `planning-pr-1.devhub.local`
-  - `notif-pr-1.devhub.local`
+  - `annuaire-preview-feature-demo-prof.devhub.local`
+  - `planning-preview-feature-demo-prof.devhub.local`
+  - `notif-preview-feature-demo-prof.devhub.local`
 
 ### Etat courant
 
@@ -327,7 +327,7 @@ Le polycopie demande de choisir entre le generateur `git` (branches) et `pullReq
   - `platform/apps/preview/*.yaml` utilise maintenant `pullRequest.github.owner/repo` sur `Yannis-Alouache/devhub-campus` ;
   - le poly conseille de preparer un token GitHub ; la doc ApplicationSet autorise un repo public sans `tokenRef`, mais dans notre cas le controleur a effectivement rencontre un `403 API rate limit exceeded`, donc `tokenRef` devient necessaire en pratique ;
   - les previews sont filtrees sur les PR dont la branche source matche `^feature/.*` et la branche cible `^main$` ;
-  - chaque preview partage le namespace `devhub-preview-pr-<numero>` et expose des hosts dedies (`annuaire-pr-<numero>.devhub.local`, etc.) ;
+  - chaque preview partage le namespace `devhub-preview-<branche>` et expose des hosts dedies (`annuaire-preview-<branche>.devhub.local`, etc.) ;
   - le tag d'image injecte correspond a `head_short_sha_7`, ce qui colle a la CI GitHub Actions deja en place.
 - Cablage plateforme :
   - `platform/bootstrap/root-app.yaml` doit maintenant charger `platform/apps/` et non plus seulement `platform/apps/dev/`, afin que les `ApplicationSet` preview soient crees par la root app.
@@ -338,12 +338,12 @@ Le polycopie demande de choisir entre le generateur `git` (branches) et `pullReq
   - `kubectl apply --dry-run=server -f platform/apps/preview` passe ;
   - `kubectl apply --dry-run=server -f platform/bootstrap/root-app.yaml` passe ;
   - une application temporaire des trois `ApplicationSet` sur le cluster a confirme des conditions `ParametersGenerated=True` et `ResourcesUpToDate=True` ;
-  - une fois la PR `#1` ouverte, ArgoCD a genere `annuaire-pr-1`, `planning-pr-1` et `notif-pr-1` dans `devhub-preview-pr-1` ;
-  - `annuaire-pr-1` a bien deploye `2` replicas comme attendu ;
+  - une fois la PR `#1` ouverte, ArgoCD a genere `annuaire-preview-feature-demo-prof`, `planning-preview-feature-demo-prof` et `notif-preview-feature-demo-prof` dans `devhub-preview-feature-demo-prof` ;
+  - `annuaire-preview-feature-demo-prof` a bien deploye `3` replicas comme attendu ;
   - les trois applications de preview sont passees en `Synced + Healthy` ;
   - les endpoints `/healthz` ont repondu via `curl` avec le header `Host` sur les trois hosts preview ;
   - a la fermeture de la PR `#1` et a la suppression de la branche, les trois `Application` preview ont ete prunees automatiquement ;
-  - le namespace partage `devhub-preview-pr-1` est reste vide apres le prune et a ete supprime manuellement ; avec `CreateNamespace=true`, ce point reste a connaitre/documenter.
+  - le namespace partage `devhub-preview-feature-demo-prof` est reste vide apres le prune et a ete supprime manuellement ; avec `CreateNamespace=true`, ce point reste a connaitre/documenter.
 
 ## 8. Bestiaire ArgoCD
 
@@ -459,7 +459,7 @@ Le fichier `platform/argocd/values.yaml` declare :
 
 #### Points de vigilance
 
-- Le ConfigMap `argocd-rbac-cm` utilise `glob` par defaut : `annuaire*` matche `annuaire-dev`, `annuaire-pr-1`, etc., mais pas `planning-dev`.
+- Le ConfigMap `argocd-rbac-cm` utilise `glob` par defaut : `annuaire*` matche `annuaire-dev`, `annuaire-preview-feature-demo-prof`, etc., mais pas `planning-dev`.
 - Le nom du champ `policy.csv` dans le ConfigMap doit etre exactement `policy.csv` (avec le pipe `|` pour le bloc YAML).
 - Le role `role:authenticated` donne un droit de lecture par defaut a tous les utilisateurs connectes.
 
@@ -547,7 +547,7 @@ Verifie via `kubectl port-forward` + `curl /metrics`.
 | Auditer ce qui a change sur 6 mois | `git log` sur le repo `platform/`. Chaque changement de manifest est un commit avec auteur, date et message. |
 | Re-deployer le cluster from scratch | `kind create cluster` + `helm install argocd` + `kubectl apply -f root-app.yaml`. Tout le reste converge automatiquement. |
 | Desinstaller un service | Supprimer le fichier dans Git, `prune: true` fait le reste. Mais `prune` est dangereux — on l'a vu quand le `Service` a disparu apres la suppression de `service.yaml`. |
-| Tester un changement risque | Les previews isolees par branche sont un confort considerable. On teste sur `annuaire-pr-1.devhub.local` sans toucher au dev partagé. |
+| Tester un changement risque | Les previews isolees par branche sont un confort considerable. On teste sur `annuaire-preview-feature-demo-prof.devhub.local` sans toucher au dev partagé. |
 
 #### Operations ou ArgoCD est plus contraignant
 
