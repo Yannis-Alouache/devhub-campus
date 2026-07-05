@@ -138,7 +138,15 @@ curl http://localhost:8080/students   # => JSON
 ```
 
 - Taille de l'image : environ 132 MiB (sous la limite de 200 Mo).
-- L'image est poussee sur GHCR : `ghcr.io/yannis-alouache/annuaire:<sha>`.
+- L'image est poussee sur GHCR : `ghcr.io/yannis-alouache/annuaire:<sha>` (package public).
+
+Verification que l'image est bien presente sur GHCR (package public, sans login, sans dependance) :
+
+```bash
+docker manifest inspect ghcr.io/yannis-alouache/annuaire:aeb14c8     # renvoie le manifest JSON => l'image existe
+TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:yannis-alouache/annuaire:pull&service=ghcr.io" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+curl -s -H "Authorization: Bearer $TOKEN" "https://ghcr.io/v2/yannis-alouache/annuaire/tags/list"   # liste tous les tags pousses
+```
 
 ### Etat courant
 
@@ -379,9 +387,9 @@ Pour chaque scenario : capture, observation, hypothese, conclusion.
 ### 3. Rollback par `git revert`
 
 - **Manipulation.** `git revert` du commit precedent, produit dans le commit `5eaf040`.
-- **Observation.** A `t+0s`, `annuaire-dev` est encore `Progressing` avec l'image invalide. A `t+~10s`, l'image revient sur `ccb0f03`, le ReplicaSet fautif disparait et l'application repasse en `Synced + Healthy`.
+- **Observation.** A `t+0s`, `annuaire-dev` est encore `Progressing` avec l'image invalide. A `t+~10s`, l'image revient sur `ccb0f03c3737f3f66cfebd46524c2f59084fd7b7`, le ReplicaSet fautif disparait et l'application repasse en `Synced + Healthy`.
 - **Hypothese.** Un revert Git suffit : ArgoCD voit le nouveau commit, resynchronise automatiquement et le cluster converge sans action imperative supplementaire.
-- **Verification.** Le `Deployment` retrouve `ghcr.io/yannis-alouache/annuaire:ccb0f03` et un seul pod sain reste en place.
+- **Verification.** Le `Deployment` retrouve `ghcr.io/yannis-alouache/annuaire:ccb0f03c3737f3f66cfebd46524c2f59084fd7b7` et un seul pod sain reste en place.
 - **Conclusion.** Le rollback GitOps tient bien dans Git lui-meme. Ici, revenir a l'etat sain a pris environ 10 secondes.
 
 **Capture :**
